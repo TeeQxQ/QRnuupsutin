@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QR Code Maker</title>
+<meta name="description" content="Free QR code generator with your own logo in the middle. Runs entirely in your browser — nothing is uploaded.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8'%3E%3Cpath d='M0 0h3v3H0zM5 0h3v3H5zM0 5h3v3H0zM4 4h1v1H4zM6 5h2v1H6zM5 7h2v1H5z'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f5f5f2;
+    --surface: #ffffff;
+    --text: #1b1b1f;
+    --muted: #63636b;
+    --border: #dcdcd6;
+    --accent: #2754c5;
+    --accent-text: #ffffff;
+    --warn-bg: #fff4d6;
+    --warn-text: #6b4a00;
+    --checker: #e8e8e3;
+    --radius: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141417;
+      --surface: #1e1e23;
+      --text: #ececf0;
+      --muted: #a0a0aa;
+      --border: #34343c;
+      --accent: #7c9cff;
+      --accent-text: #0f1220;
+      --warn-bg: #3a2f10;
+      --warn-text: #f3d68a;
+      --checker: #2a2a30;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141417;
+    --surface: #1e1e23;
+    --text: #ececf0;
+    --muted: #a0a0aa;
+    --border: #34343c;
+    --accent: #7c9cff;
+    --accent-text: #0f1220;
+    --warn-bg: #3a2f10;
+    --warn-text: #f3d68a;
+    --checker: #2a2a30;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 32px 16px 48px;
+  }
+  header h1 { margin: 0 0 24px; font-size: 1.75rem; letter-spacing: -0.01em; }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 380px);
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: minmax(0, 1fr); }
+    .preview { order: -1; }
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+  }
+  .field { margin-bottom: 20px; }
+  .field:last-child { margin-bottom: 0; }
+  label.title, .title {
+    display: block;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 6px;
+  }
+
+  input[type="url"], input[type="text"], select {
+    width: 100%;
+    font: inherit;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  input:focus-visible, select:focus-visible, button:focus-visible, .drop:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .drop {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .drop .thumb {
+    width: 56px; height: 56px; flex: none;
+    border-radius: 8px;
+    background: var(--checker);
+    display: grid; place-items: center;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 1.5rem;
+  }
+  .drop .thumb img { max-width: 100%; max-height: 100%; }
+  .drop .text { min-width: 0; }
+  .drop .text strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .row > * { flex: 1 1 140px; }
+
+  .color {
+    display: flex; align-items: center; gap: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px 6px 6px;
+    background: var(--bg);
+  }
+  .color input[type="color"] {
+    width: 36px; height: 36px; padding: 0; border: none; background: none; cursor: pointer; flex: none;
+  }
+  .color input[type="text"] {
+    border: none; padding: 4px 0; background: transparent; font-family: ui-monospace, Menlo, monospace; min-width: 0;
+  }
+
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  input[type="checkbox"] { accent-color: var(--accent); width: 18px; height: 18px; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 0.95rem; cursor: pointer; }
+
+  button {
+    font: inherit;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  button.primary {
+    width: 100%;
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+    font-weight: 600;
+    padding: 12px 16px;
+  }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.link { border: none; background: none; color: var(--accent); padding: 0; }
+
+  .preview { position: sticky; top: 16px; }
+  .canvas-wrap {
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: var(--checker);
+    background-image:
+      linear-gradient(45deg, var(--surface) 25%, transparent 25%, transparent 75%, var(--surface) 75%),
+      linear-gradient(45deg, var(--surface) 25%, transparent 25%, transparent 75%, var(--surface) 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 8px 8px;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    margin-bottom: 16px;
+  }
+  .canvas-wrap canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; touch-action: none; }
+  .canvas-wrap canvas.grab { cursor: grab; }
+  .canvas-wrap canvas.dragging { cursor: grabbing; }
+  .preview-bar { display: flex; justify-content: flex-end; margin: -6px 0 12px; }
+  .empty { color: var(--muted); padding: 24px; text-align: center; }
+
+  .warn {
+    background: var(--warn-bg);
+    color: var(--warn-text);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.875rem;
+    margin-bottom: 12px;
+  }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>QR Code Maker</h1>
+  </header>
+
+  <div class="layout">
+    <section class="card" aria-label="Settings">
+      <div class="field">
+        <label class="title" for="link">Link</label>
+        <input id="link" type="url" inputmode="url" autocomplete="url" placeholder="https://example.com" value="https://example.com">
+      </div>
+
+      <div class="field">
+        <span class="title" id="logo-label">Logo in the middle</span>
+        <div class="drop" id="drop" tabindex="0" role="button" aria-labelledby="logo-label">
+          <div class="thumb" id="thumb" aria-hidden="true">+</div>
+          <div class="text">
+            <strong id="logo-name">Choose an image</strong>
+          </div>
+        </div>
+        <input id="file" type="file" accept="image/*" class="sr-only" tabindex="-1">
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label class="title" for="logo-size">Logo box size: <span id="logo-size-val">22%</span></label>
+            <input id="logo-size" type="range" min="10" max="30" step="1" value="22">
+          </div>
+          <div id="zoom-wrap" hidden>
+            <label class="title" for="zoom">Logo zoom: <span id="zoom-val">100%</span></label>
+            <input id="zoom" type="range" min="20" max="500" step="1" value="100">
+          </div>
+        </div>
+        <div id="logo-opts" style="margin-top:6px" hidden>
+          <button type="button" class="link" id="remove-logo">Remove logo</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="title" for="style">Pixel style</label>
+        <select id="style">
+          <option value="squares" selected>Squares</option>
+          <option value="dots">Dots</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <div class="row">
+          <div>
+            <span class="title">QR color</span>
+            <div class="color">
+              <input type="color" id="fg" value="#000000" aria-label="QR color picker">
+              <input type="text" id="fg-hex" value="#000000" maxlength="7" spellcheck="false" aria-label="QR color hex">
+            </div>
+          </div>
+          <div>
+            <span class="title">Background</span>
+            <div class="color">
+              <input type="color" id="bg" value="#ffffff" aria-label="Background color picker">
+              <input type="text" id="bg-hex" value="#ffffff" maxlength="7" spellcheck="false" aria-label="Background color hex">
+            </div>
+          </div>
+        </div>
+        <label class="check" style="margin-top:10px">
+          <input type="checkbox" id="transparent"> Transparent background
+        </label>
+      </div>
+
+      <div class="field">
+        <div class="row">
+          <div>
+            <label class="title" for="size">Image size</label>
+            <select id="size">
+              <option value="512">512 × 512 px</option>
+              <option value="1024" selected>1024 × 1024 px</option>
+              <option value="2048">2048 × 2048 px</option>
+              <option value="4096">4096 × 4096 px (print)</option>
+            </select>
+          </div>
+          <div>
+            <label class="title" for="margin">Margin</label>
+            <select id="margin">
+              <option value="2">Small</option>
+              <option value="4" selected>Standard</option>
+              <option value="6">Large</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card preview" aria-label="Preview">
+      <div class="canvas-wrap" id="canvas-wrap">
+        <canvas id="canvas" width="1024" height="1024" tabindex="0" role="img"
+          aria-label="QR code preview. Use arrow keys to move the logo in its box, plus and minus to zoom."></canvas>
+      </div>
+      <div class="preview-bar">
+        <button type="button" class="link" id="center" hidden>Reset</button>
+      </div>
+      <div class="warn" id="warn" hidden></div>
+      <button type="button" class="primary" id="download">Download PNG</button>
+    </section>
+  </div>
+</main>
+
+<script src="vendor/qrcode.min.js"></script>
+<script src="vendor/jsQR.min.js"></script>
+<script>
+(() => {
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['UTF-8'];
+
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    link: $('link'), file: $('file'), drop: $('drop'), thumb: $('thumb'), logoName: $('logo-name'),
+    logoOpts: $('logo-opts'), logoSize: $('logo-size'), logoSizeVal: $('logo-size-val'),
+    removeLogo: $('remove-logo'),
+    fg: $('fg'), fgHex: $('fg-hex'), bg: $('bg'), bgHex: $('bg-hex'), transparent: $('transparent'),
+    size: $('size'), margin: $('margin'), style: $('style'), canvas: $('canvas'), wrap: $('canvas-wrap'),
+    warn: $('warn'), download: $('download'), center: $('center'),
+    zoom: $('zoom'), zoomVal: $('zoom-val'), zoomWrap: $('zoom-wrap'),
+  };
+
+  let logo = null;      // HTMLImageElement
+  let logoUrl = null;   // object URL to revoke
+  // How the logo sits in its box: offset of its center from the box center, as a fraction of
+  // the box, and zoom relative to fitting the whole logo in the box.
+  const view = { x: 0, y: 0, zoom: 1 };
+  const MIN_ZOOM = 0.2, MAX_ZOOM = 5;
+  let layout = null;    // where the last render put things, in canvas pixels, for dragging
+
+  // ---------- Logo handling ----------
+  function setLogo(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      if (logoUrl) URL.revokeObjectURL(logoUrl);
+      logo = img;
+      logoUrl = url;
+      els.thumb.innerHTML = '';
+      els.thumb.appendChild(img.cloneNode());
+      els.logoName.textContent = file.name || 'Pasted image';
+      els.logoOpts.hidden = els.zoomWrap.hidden = false;
+      resetView();
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      showWarn('That file could not be read as an image.');
+    };
+    img.src = url;
+  }
+
+  function clearLogo() {
+    if (logoUrl) URL.revokeObjectURL(logoUrl);
+    logo = null;
+    logoUrl = null;
+    els.file.value = '';
+    els.thumb.textContent = '+';
+    els.logoName.textContent = 'Choose an image';
+    els.logoOpts.hidden = els.zoomWrap.hidden = true;
+    resetView();
+  }
+
+  els.drop.addEventListener('click', () => els.file.click());
+  els.drop.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); els.file.click(); }
+  });
+  els.file.addEventListener('change', () => setLogo(els.file.files[0]));
+  ['dragenter', 'dragover'].forEach((t) => els.drop.addEventListener(t, (e) => {
+    e.preventDefault(); els.drop.classList.add('over');
+  }));
+  ['dragleave', 'drop'].forEach((t) => els.drop.addEventListener(t, (e) => {
+    e.preventDefault(); els.drop.classList.remove('over');
+  }));
+  els.drop.addEventListener('drop', (e) => setLogo(e.dataTransfer.files[0]));
+  // Allow dropping anywhere on the page without the browser navigating away.
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => { e.preventDefault(); if (e.dataTransfer.files[0]) setLogo(e.dataTransfer.files[0]); });
+  window.addEventListener('paste', (e) => {
+    const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith('image/'));
+    if (item) { e.preventDefault(); setLogo(item.getAsFile()); }
+  });
+  els.removeLogo.addEventListener('click', clearLogo);
+
+  // ---------- Colors ----------
+  const HEX = /^#[0-9a-f]{6}$/i;
+  function bindColor(picker, text) {
+    picker.addEventListener('input', () => { text.value = picker.value; render(); });
+    text.addEventListener('input', () => {
+      let v = text.value.trim();
+      if (!v.startsWith('#')) v = '#' + v;
+      if (/^#[0-9a-f]{3}$/i.test(v)) v = '#' + [...v.slice(1)].map((c) => c + c).join('');
+      if (HEX.test(v)) { picker.value = v.toLowerCase(); render(); }
+    });
+    text.addEventListener('blur', () => { text.value = picker.value; });
+  }
+  bindColor(els.fg, els.fgHex);
+  bindColor(els.bg, els.bgHex);
+
+  function luminance(hex) {
+    const [r, g, b] = [1, 3, 5].map((i) => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+  function contrast(a, b) {
+    const [l1, l2] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (l1 + 0.05) / (l2 + 0.05);
+  }
+
+  // ---------- Rendering ----------
+  function showWarn(msg) {
+    els.warn.textContent = msg || '';
+    els.warn.hidden = !msg;
+  }
+
+  // The logo box: always in the exact middle, in whole modules so no module is half covered.
+  function middleBox(n, frac) {
+    let span = Math.ceil(n * frac);
+    if ((n - span) % 2) span += 1; // keep it symmetric
+    const start = (n - span) / 2;
+    return { r0: start, c0: start, span };
+  }
+
+  // Alignment pattern center rows/columns per QR version (ISO/IEC 18004, Annex E).
+  const ALIGNMENT = [[], [], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38], [6, 24, 42],
+    [6, 26, 46], [6, 28, 50], [6, 30, 54], [6, 32, 58], [6, 34, 62], [6, 26, 46, 66], [6, 26, 48, 70],
+    [6, 26, 50, 74], [6, 30, 54, 78], [6, 30, 56, 82], [6, 30, 58, 86], [6, 34, 62, 90],
+    [6, 28, 50, 72, 94], [6, 26, 50, 74, 98], [6, 30, 54, 78, 102], [6, 28, 54, 80, 106],
+    [6, 32, 58, 84, 110], [6, 30, 58, 86, 114], [6, 34, 62, 90, 118], [6, 26, 50, 74, 98, 122],
+    [6, 30, 54, 78, 102, 126], [6, 26, 52, 78, 104, 130], [6, 30, 56, 82, 108, 134],
+    [6, 34, 60, 86, 112, 138], [6, 30, 58, 86, 114, 142], [6, 34, 62, 90, 118, 146],
+    [6, 30, 54, 78, 102, 126, 150], [6, 24, 50, 76, 102, 128, 154], [6, 28, 54, 80, 106, 132, 158],
+    [6, 32, 58, 84, 110, 136, 162], [6, 26, 54, 82, 110, 138, 166], [6, 30, 58, 86, 114, 142, 170]];
+
+  function makeQr(text, typeNumber) {
+    // Highest error correction (H, ~30%) so the empty area can be absorbed.
+    const qr = qrcode(typeNumber, 'H');
+    qr.addData(text);
+    qr.make();
+    return qr;
+  }
+
+  // Draws the code with the logo area left empty and the logo (if any) in it. Returns where
+  // things landed, in canvas pixels.
+  function drawCode(ctx, qr, box, size, margin, fg, img) {
+    const n = qr.getModuleCount();
+    // Whole-pixel modules give crisp edges that scanners read far more reliably; the leftover
+    // pixels just widen the margin a little.
+    const cell = Math.max(1, Math.floor(size / (n + margin * 2)));
+    const offset = Math.floor((size - n * cell) / 2);
+    const { r0, c0, span } = box;
+
+    const dots = els.style.value === 'dots';
+    // Scanners locate the code by its finder patterns (7×7 corner squares) and correct for
+    // perspective with its alignment patterns (5×5), so in dot style those are drawn as solid
+    // rounded squares rather than broken into dots. Patterns the logo box overlaps are left alone.
+    const inBox = (r, c) => r >= r0 && r < r0 + span && c >= c0 && c < c0 + span;
+    const patterns = [[0, 0, 7], [0, n - 7, 7], [n - 7, 0, 7]]; // [top row, left col, size]
+    if (dots) {
+      const centers = ALIGNMENT[(n - 17) / 4];
+      for (const r of centers) {
+        for (const c of centers) {
+          const r1 = r - 2, c1 = c - 2;
+          const hitsFinder = patterns.slice(0, 3).some(([pr, pc]) => r1 < pr + 7 && r1 + 5 > pr && c1 < pc + 7 && c1 + 5 > pc);
+          const hitsBox = r1 < r0 + span && r1 + 5 > r0 && c1 < c0 + span && c1 + 5 > c0;
+          if (!hitsFinder && !hitsBox) patterns.push([r1, c1, 5]);
+        }
+      }
+    }
+    const inPattern = (r, c) => patterns.some(([pr, pc, k]) => r >= pr && r < pr + k && c >= pc && c < pc + k);
+
+    ctx.fillStyle = fg;
+    ctx.beginPath();
+    for (let r = 0; r < n; r++) {
+      for (let c = 0; c < n; c++) {
+        if (!qr.isDark(r, c)) continue;
+        if (inBox(r, c)) continue;
+        const x = offset + c * cell, y = offset + r * cell;
+        if (!dots) {
+          ctx.rect(x, y, cell, cell);
+        } else if (!inPattern(r, c)) {
+          ctx.moveTo(x + cell * 0.95, y + cell / 2);
+          ctx.arc(x + cell / 2, y + cell / 2, cell * 0.45, 0, Math.PI * 2);
+        }
+      }
+    }
+    if (dots) {
+      // Ring of `k` modules with a one-module gap and a solid center (3×3 for finders, 1×1 for
+      // alignment patterns).
+      for (const [r, c, k] of patterns) {
+        const x = offset + c * cell, y = offset + r * cell;
+        const round = k === 7 ? 1 : 0.6;
+        ctx.roundRect(x, y, k * cell, k * cell, cell * 2 * round);
+        ctx.roundRect(x + cell, y + cell, (k - 2) * cell, (k - 2) * cell, cell * 1.3 * round); // the hole, via even-odd
+        ctx.roundRect(x + 2 * cell, y + 2 * cell, (k - 4) * cell, (k - 4) * cell, cell * (k === 7 ? 1 : 0.5));
+      }
+    }
+    // Nothing else in the path overlaps, so even-odd only affects the finder rings.
+    ctx.fill('evenodd');
+
+    // The logo is clipped to a frame inset one module from the empty box, so however it is
+    // moved or zoomed it never touches the code.
+    const frameX = offset + c0 * cell + cell, frameY = offset + r0 * cell + cell;
+    const frame = (span - 2) * cell;
+    if (img && frame > 0) {
+      let w = frame, h = frame;
+      if (img.naturalWidth && img.naturalHeight) { // some SVGs report no size
+        const k = Math.min(frame / img.naturalWidth, frame / img.naturalHeight);
+        w = img.naturalWidth * k;
+        h = img.naturalHeight * k;
+      }
+      w *= view.zoom;
+      h *= view.zoom;
+      const cx = frameX + frame / 2 + view.x * frame, cy = frameY + frame / 2 + view.y * frame;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(frameX, frameY, frame, frame);
+      ctx.clip();
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
+      ctx.restore();
+    }
+    return { frameX, frameY, frame };
+  }
+
+  // Decodes a small black-on-white render to prove the code scans with the middle empty
+  // (and with the current logo in it).
+  const checkCanvas = document.createElement('canvas');
+  const checkCtx = checkCanvas.getContext('2d', { willReadFrequently: true });
+  function scans(qr, box, margin, text) {
+    const px = 6;
+    const size = (qr.getModuleCount() + margin * 2) * px;
+    checkCanvas.width = checkCanvas.height = size;
+    const variants = logo ? [null, logo] : [null];
+    return variants.every((img) => {
+      checkCtx.fillStyle = '#ffffff';
+      checkCtx.fillRect(0, 0, size, size);
+      drawCode(checkCtx, qr, box, size, margin, '#000000', img);
+      const code = jsQR(checkCtx.getImageData(0, 0, size, size).data, size, size, { inversionAttempts: 'dontInvert' });
+      return !!code && code.data === text;
+    });
+  }
+
+  // Small QR versions have too little redundancy to lose part of their area, so step up to
+  // denser versions until one verifiably scans. Returns null if the text doesn't fit at all.
+  // Otherwise `ok` says whether a scannable version was found; if not, the smallest one is
+  // returned so the preview still shows something while the logo is moved.
+  // While dragging, only the current version and the next one are tried so the preview keeps
+  // up; the full search runs when the logo is dropped.
+  const cache = new Map();
+  let lastType = 0;
+  function findScannable(text, frac, margin, quick) {
+    let first;
+    try {
+      first = makeQr(text, 0);
+    } catch (_) {
+      return null;
+    }
+    const minType = (first.getModuleCount() - 17) / 4;
+    const from = quick ? Math.max(minType, lastType) : minType;
+    const to = Math.min(40, quick ? from + 1 : minType + 10);
+    let fallback = null;
+    for (let t = from; t <= to; t++) {
+      const qr = t === minType ? first : makeQr(text, t);
+      const box = middleBox(qr.getModuleCount(), frac);
+      fallback ??= { qr, box, ok: false };
+      // Tiny changes in logo placement barely matter, so a coarse grid keeps the cache useful.
+      const key = [text, margin, els.style.value, logoUrl, t, box.span, logo ? [Math.round(view.x * 50),
+        Math.round(view.y * 50), Math.round(Math.log(view.zoom) * 20)] : ''].join('\u0000');
+      if (!cache.has(key)) {
+        if (cache.size > 500) cache.clear();
+        cache.set(key, scans(qr, box, margin, text));
+      }
+      if (cache.get(key)) { lastType = t; return { qr, box, ok: true }; }
+    }
+    return fallback;
+  }
+
+  function render() {
+    const text = els.link.value.trim();
+    const size = parseInt(els.size.value, 10);
+    const margin = parseInt(els.margin.value, 10);
+    const fg = els.fg.value;
+    const bg = els.bg.value;
+    const transparent = els.transparent.checked;
+    const canvas = els.canvas;
+    const ctx = canvas.getContext('2d');
+
+    els.bg.disabled = els.bgHex.disabled = transparent;
+    els.logoSizeVal.textContent = els.logoSize.value + '%';
+
+    canvas.width = canvas.height = size;
+    ctx.clearRect(0, 0, size, size);
+
+    if (!text) {
+      els.download.disabled = true;
+      showWarn('Enter a link to generate a QR code.');
+      return;
+    }
+
+    const frac = parseInt(els.logoSize.value, 10) / 100;
+    const found = findScannable(text, frac, margin, !!drag);
+    if (!found) {
+      layout = null;
+      els.download.disabled = true;
+      showWarn('That link is too long to fit in a QR code.');
+      return;
+    }
+
+    if (!transparent) {
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, size, size);
+    }
+    layout = drawCode(ctx, found.qr, found.box, size, margin, fg, logo);
+    els.center.hidden = !logo || (view.x === 0 && view.y === 0 && view.zoom === 1);
+    els.zoom.value = Math.round(view.zoom * 100);
+    els.zoomVal.textContent = Math.round(view.zoom * 100) + '%';
+
+    els.download.disabled = !found.ok;
+    if (!found.ok) {
+      showWarn(logo
+        ? 'The code won\'t scan like this. Try a smaller logo box, or move or zoom the logo.'
+        : 'The code won\'t scan with this big a logo box. Make it smaller.');
+      return;
+    }
+
+    // Warnings
+    const effectiveBg = transparent ? '#ffffff' : bg;
+    const ratio = contrast(fg, effectiveBg);
+    const darkOnLight = luminance(fg) < luminance(effectiveBg);
+    if (ratio < 3) {
+      showWarn('Low contrast between QR color and background — many phones won\'t be able to scan it.');
+    } else if (!darkOnLight) {
+      showWarn('Light QR on a dark background (inverted) is not supported by every scanner app.');
+    } else if (transparent) {
+      showWarn('Transparent background: make sure it is placed on a light surface.');
+    } else if (!/^[a-z][a-z0-9+.-]*:/i.test(text) && /\./.test(text)) {
+      showWarn('Tip: add https:// so phones open it as a link.');
+    } else {
+      showWarn('');
+    }
+  }
+
+  // ---------- Download ----------
+  function fileName() {
+    let base = 'qr-code';
+    try {
+      const u = new URL(els.link.value.trim());
+      base = 'qr-' + (u.hostname + u.pathname).replace(/^www\./, '').replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 60);
+    } catch (_) { /* not a URL; keep default */ }
+    return base + '.png';
+  }
+
+  els.download.addEventListener('click', () => {
+    els.canvas.toBlob((blob) => {
+      if (!blob) return;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = fileName();
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }, 'image/png');
+  });
+
+  // ---------- Positioning the logo in its box ----------
+  function resetView() {
+    view.x = view.y = 0;
+    view.zoom = 1;
+    render();
+  }
+  function toCanvas(e) {
+    const r = els.canvas.getBoundingClientRect();
+    const k = els.canvas.width / r.width;
+    return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k };
+  }
+  function inFrame(p) {
+    return logo && layout && p.x >= layout.frameX && p.x <= layout.frameX + layout.frame &&
+      p.y >= layout.frameY && p.y <= layout.frameY + layout.frame;
+  }
+  // Limits panning so the logo can hang past the box edge by at most a quarter of the box, and
+  // never by more than half of itself, so it can't be lost.
+  function clampView() {
+    view.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, view.zoom));
+    const nw = logo?.naturalWidth || 1, nh = logo?.naturalHeight || 1;
+    const w = (nw / Math.max(nw, nh)) * view.zoom, h = (nh / Math.max(nw, nh)) * view.zoom;
+    const lim = (size) => Math.abs(size - 1) / 2 + Math.min(0.25, size / 2);
+    const limX = lim(w), limY = lim(h);
+    view.x = Math.max(-limX, Math.min(limX, view.x));
+    view.y = Math.max(-limY, Math.min(limY, view.y));
+  }
+  // Zooms by `k`, keeping the point `p` (canvas pixels; box center if omitted) where it is.
+  function zoomBy(k, p) {
+    const before = view.zoom;
+    view.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, view.zoom * k));
+    if (p && layout) {
+      const k2 = view.zoom / before;
+      const px = (p.x - layout.frameX) / layout.frame - 0.5, py = (p.y - layout.frameY) / layout.frame - 0.5;
+      view.x = px + (view.x - px) * k2;
+      view.y = py + (view.y - py) * k2;
+    }
+    clampView();
+    schedule();
+  }
+
+  let drag = null;
+  const pointers = new Map(); // active touches, for pinch zoom
+  els.canvas.addEventListener('pointerdown', (e) => {
+    const p = toCanvas(e);
+    if (!inFrame(p) && !pointers.size) return;
+    e.preventDefault();
+    try { els.canvas.setPointerCapture(e.pointerId); } catch (_) { /* synthetic events */ }
+    pointers.set(e.pointerId, p);
+    drag = { x: p.x, y: p.y, vx: view.x, vy: view.y };
+    els.canvas.classList.add('dragging');
+  });
+  els.canvas.addEventListener('pointermove', (e) => {
+    const p = toCanvas(e);
+    if (!drag || drag.wheel || !layout) {
+      els.canvas.classList.toggle('grab', !!inFrame(p));
+      return;
+    }
+    if (pointers.size === 2 && pointers.has(e.pointerId)) {
+      const [a, b] = [...pointers.values()];
+      const before = Math.hypot(a.x - b.x, a.y - b.y);
+      pointers.set(e.pointerId, p);
+      const [a2, b2] = [...pointers.values()];
+      const after = Math.hypot(a2.x - b2.x, a2.y - b2.y);
+      if (before > 0) zoomBy(after / before, { x: (a2.x + b2.x) / 2, y: (a2.y + b2.y) / 2 });
+      drag = null; // the remaining finger starts a fresh drag after a pinch
+      return;
+    }
+    pointers.set(e.pointerId, p);
+    view.x = drag.vx + (p.x - drag.x) / layout.frame;
+    view.y = drag.vy + (p.y - drag.y) / layout.frame;
+    // Snap to the exact middle when close.
+    const snap = 0.03;
+    if (Math.abs(view.x) < snap) view.x = 0;
+    if (Math.abs(view.y) < snap) view.y = 0;
+    clampView();
+    schedule();
+  });
+  const endDrag = (e) => {
+    pointers.delete(e.pointerId);
+    const last = [...pointers.values()][0];
+    if (last) { // one finger still down after a pinch: keep dragging from here
+      drag = { x: last.x, y: last.y, vx: view.x, vy: view.y };
+      return;
+    }
+    if (!els.canvas.classList.contains('dragging')) return;
+    drag = null;
+    els.canvas.classList.remove('dragging');
+    render();
+  };
+  els.canvas.addEventListener('pointerup', endDrag);
+  els.canvas.addEventListener('pointercancel', endDrag);
+
+  // Mouse wheel and trackpad pinch (reported as wheel + ctrlKey) zoom around the pointer.
+  let wheelTimer = 0;
+  els.canvas.addEventListener('wheel', (e) => {
+    const p = toCanvas(e);
+    if (!inFrame(p)) return;
+    e.preventDefault();
+    const k = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015));
+    drag ??= { wheel: true };
+    zoomBy(k, p);
+    clearTimeout(wheelTimer);
+    wheelTimer = setTimeout(() => { if (drag?.wheel) { drag = null; render(); } }, 200);
+  }, { passive: false });
+
+  els.canvas.addEventListener('keydown', (e) => {
+    if (!logo || !layout) return;
+    const dirs = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+    if (dirs[e.key]) {
+      // 1% of the box per press, 10% with Shift.
+      const step = e.shiftKey ? 0.1 : 0.01;
+      view.x += dirs[e.key][0] * step;
+      view.y += dirs[e.key][1] * step;
+      clampView();
+      schedule();
+    } else if (e.key === '+' || e.key === '=') {
+      zoomBy(1.05);
+    } else if (e.key === '-' || e.key === '_') {
+      zoomBy(1 / 1.05);
+    } else if (e.key === '0') {
+      resetView();
+    } else {
+      return;
+    }
+    e.preventDefault();
+  });
+
+  els.zoom.addEventListener('input', () => {
+    view.zoom = parseInt(els.zoom.value, 10) / 100;
+    clampView();
+    schedule();
+  });
+  els.center.addEventListener('click', resetView);
+
+  // ---------- Wiring ----------
+  let pending = 0;
+  const schedule = () => { cancelAnimationFrame(pending); pending = requestAnimationFrame(render); };
+  [els.link, els.logoSize].forEach((el) => el.addEventListener('input', schedule));
+  [els.transparent, els.size, els.margin, els.style].forEach((el) => el.addEventListener('change', render));
+
+  render();
+})();
+</script>
+</body>
+</html>
